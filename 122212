@@ -1,0 +1,104 @@
+CREATE TABLE Author (
+    id SERIAL PRIMARY KEY,
+    surname VARCHAR(100) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    patronymic VARCHAR(100)
+);
+
+CREATE TABLE Publisher (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(150) NOT NULL,
+    address VARCHAR(200)
+);
+
+CREATE TABLE Book (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(200) NOT NULL,
+    description TEXT,
+    price NUMERIC(10,2),
+    published_date DATE
+);
+
+CREATE TABLE BookAuthor (
+    book_id INT REFERENCES Book(id) ON DELETE CASCADE,
+    author_id INT REFERENCES Author(id) ON DELETE CASCADE,
+    PRIMARY KEY (book_id, author_id)
+);
+
+CREATE TABLE BookPublisher (
+    book_id INT REFERENCES Book(id) ON DELETE CASCADE,
+    publisher_id INT REFERENCES Publisher(id) ON DELETE CASCADE,
+    PRIMARY KEY (book_id, publisher_id)
+);
+
+CREATE TABLE AuthorPublisher (
+    author_id INT REFERENCES Author(id) ON DELETE CASCADE,
+    publisher_id INT REFERENCES Publisher(id) ON DELETE CASCADE,
+    PRIMARY KEY (author_id, publisher_id)
+);
+
+INSERT INTO Author (surname, name, patronymic) VALUES
+('Иванов', 'Иван', 'Иванович'),
+('Петров', 'Пётр', 'Петрович'),
+('Сидоров', 'Сидор', 'Сидорович');
+
+INSERT INTO Publisher (name, address) VALUES
+('Питер', 'Санкт-Петербург'),
+('Эксмо', 'Москва'),
+('АСТ', 'Москва');
+
+INSERT INTO Book (name, description, price, published_date) VALUES
+('SQL для начинающих', 'Учебник по SQL', 800, '2019-02-12'),
+('PostgreSQL практика', 'Практическое пособие', 1200, '2020-04-17'),
+('Базы данных', 'Теория БД', 1500, '2021-06-01');
+
+INSERT INTO BookAuthor VALUES
+(1,1),
+(2,1),
+(2,2),
+(3,3);
+
+INSERT INTO BookPublisher VALUES
+(1,1),
+(2,2),
+(3,3);
+
+INSERT INTO AuthorPublisher VALUES
+(1,1),
+(2,2),
+(3,3);
+
+CREATE OR REPLACE VIEW BooksStat AS
+SELECT
+    a.surname,
+    p.name,
+    COUNT(b.id)
+FROM Book b
+JOIN BookAuthor ba ON b.id = ba.book_id
+JOIN Author a ON ba.author_id = a.id
+JOIN BookPublisher bp ON b.id = bp.book_id
+JOIN Publisher p ON bp.publisher_id = p.id
+GROUP BY a.surname, p.name
+ORDER BY COUNT(b.id) DESC;
+
+CREATE OR REPLACE PROCEDURE GetBooksByPeriod(
+    date_from DATE,
+    date_to DATE,
+    min_price NUMERIC
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    SELECT
+        b.name,
+        a.surname || ' ' || LEFT(a.name,1) || '.' || LEFT(a.patronymic,1) || '.',
+        p.name
+    FROM Book b
+    JOIN BookAuthor ba ON b.id = ba.book_id
+    JOIN Author a ON ba.author_id = a.id
+    JOIN BookPublisher bp ON b.id = bp.book_id
+    JOIN Publisher p ON bp.publisher_id = p.id
+    WHERE b.published_date BETWEEN date_from AND date_to
+      AND b.price > min_price;
+END;
+$$;
